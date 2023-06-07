@@ -313,9 +313,11 @@ func (e *NameEncoder) UnmarshalText(text []byte) error {
 
 // An EncoderConfig allows users to configure the concrete encoders supplied by
 // zapcore.
+// 日志格式的 配置.
 type EncoderConfig struct {
 	// Set the keys used for each log entry. If any key is empty, that portion
 	// of the entry is omitted.
+	// 设置 每一条log 的 keys, 如果下面 任何一个key 为空, 就将这个 Entry忽略.
 	MessageKey     string `json:"messageKey" yaml:"messageKey"`
 	LevelKey       string `json:"levelKey" yaml:"levelKey"`
 	TimeKey        string `json:"timeKey" yaml:"timeKey"`
@@ -337,9 +339,11 @@ type EncoderConfig struct {
 	EncodeName NameEncoder `json:"nameEncoder" yaml:"nameEncoder"`
 	// Configure the encoder for interface{} type objects.
 	// If not provided, objects are encoded using json.Encoder
+	// 用于  interface 类型的encoder,如果没有配置,使用 json.Encoder
 	NewReflectedEncoder func(io.Writer) ReflectedEncoder `json:"-" yaml:"-"`
 	// Configures the field separator used by the console encoder. Defaults
 	// to tab.
+	// console 格式的分隔符,默认是  Tab.
 	ConsoleSeparator string `json:"consoleSeparator" yaml:"consoleSeparator"`
 }
 

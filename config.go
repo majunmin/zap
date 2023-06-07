@@ -36,6 +36,8 @@ import (
 //
 // Values configured here are per-second. See zapcore.NewSamplerWithOptions for
 // details.
+// 采样策略配置, 可以 有效减少  cpu 和 磁盘IO 负载
+// 大致的逻辑是每秒超过 Thereafter个相同 msg 的log会执行自定义的Hook函数(第二个参数为一个标志,LogDropped)，
 type SamplingConfig struct {
 	Initial    int                                           `json:"initial" yaml:"initial"`
 	Thereafter int                                           `json:"thereafter" yaml:"thereafter"`
@@ -59,28 +61,36 @@ type Config struct {
 	// Level is the minimum enabled logging level. Note that this is a dynamic
 	// level, so calling Config.Level.SetLevel will atomically change the log
 	// level of all loggers descended from this config.
+	// 日志Level，因为可以动态更改，所以是atomic类型的，毕竟比锁的性能好
 	Level AtomicLevel `json:"level" yaml:"level"`
 	// Development puts the logger in development mode, which changes the
 	// behavior of DPanicLevel and takes stacktraces more liberally.
+	// dev模式,启用后会更改在某些使用情形下的行为, 启用后会 改变 DPanicLevel 行为 和 更自由的使用堆栈跟踪
 	Development bool `json:"development" yaml:"development"`
 	// DisableCaller stops annotating logs with the calling function's file
 	// name and line number. By default, all logs are annotated.
+	// 禁用caller, 停止在 日志中打印文件名和行号, 默认情况下会打印
 	DisableCaller bool `json:"disableCaller" yaml:"disableCaller"`
 	// DisableStacktrace completely disables automatic stacktrace capturing. By
 	// default, stacktraces are captured for WarnLevel and above logs in
 	// development and ErrorLevel and above in production.
+	// 禁用 堆栈跟踪捕获. 默认情况下会捕获 >= WarnLevel 级别的日志 in development. 捕获  >= ErrorLevel 级别的日志 in production
 	DisableStacktrace bool `json:"disableStacktrace" yaml:"disableStacktrace"`
 	// Sampling sets a sampling policy. A nil SamplingConfig disables sampling.
+	// 降采样策略, nil 表示禁用采样
 	Sampling *SamplingConfig `json:"sampling" yaml:"sampling"`
 	// Encoding sets the logger's encoding. Valid values are "json" and
 	// "console", as well as any third-party encodings registered via
 	// RegisterEncoder.
+	// 日志的 编码方式. 合法的值是 "json|console", 可以引用第三方包通过 RegisterEncoder 的方式. (proto)
 	Encoding string `json:"encoding" yaml:"encoding"`
 	// EncoderConfig sets options for the chosen encoder. See
 	// zapcore.EncoderConfig for details.
+	// 为 Encoder 配置可选项. 详见 zapcore.EncoderConfig
 	EncoderConfig zapcore.EncoderConfig `json:"encoderConfig" yaml:"encoderConfig"`
 	// OutputPaths is a list of URLs or file paths to write logging output to.
 	// See Open for details.
+	// log输出路径, 要写入的日志输出 URL or filePath.
 	OutputPaths []string `json:"outputPaths" yaml:"outputPaths"`
 	// ErrorOutputPaths is a list of URLs to write internal logger errors to.
 	// The default is standard error.
@@ -88,8 +98,10 @@ type Config struct {
 	// Note that this setting only affects internal errors; for sample code that
 	// sends error-level logs to a different location from info- and debug-level
 	// logs, see the package-level AdvancedConfiguration example.
+	// 内部错误输出路径, 要写入的日志输出 URL or filePath.
 	ErrorOutputPaths []string `json:"errorOutputPaths" yaml:"errorOutputPaths"`
 	// InitialFields is a collection of fields to add to the root logger.
+	// 每条log都会加上InitialFields里的内容，顾名思义
 	InitialFields map[string]interface{} `json:"initialFields" yaml:"initialFields"`
 }
 
@@ -237,11 +249,14 @@ func NewDevelopmentConfig() Config {
 
 // Build constructs a logger from the Config and Options.
 func (cfg Config) Build(opts ...Option) (*Logger, error) {
+	// 构建 encoder
+	// 这里用到的 配置就是  cfg.Encoding, cfg.EncodeConfig
 	enc, err := cfg.buildEncoder()
 	if err != nil {
 		return nil, err
 	}
 
+	// 构造日志输出对象
 	sink, errSink, err := cfg.openSinks()
 	if err != nil {
 		return nil, err
@@ -313,10 +328,12 @@ func (cfg Config) buildOptions(errSink zapcore.WriteSyncer) []Option {
 }
 
 func (cfg Config) openSinks() (zapcore.WriteSyncer, zapcore.WriteSyncer, error) {
+	// 日志输出
 	sink, closeOut, err := Open(cfg.OutputPaths...)
 	if err != nil {
 		return nil, nil, err
 	}
+	// 内部错误输出
 	errSink, _, err := Open(cfg.ErrorOutputPaths...)
 	if err != nil {
 		closeOut()

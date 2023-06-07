@@ -35,12 +35,14 @@ type counter struct {
 	counter atomic.Uint64
 }
 
+// 用来记录 日志打印了多少条
 type counters [_numLevels][_countersPerLevel]counter
 
 func newCounters() *counters {
 	return &counters{}
 }
 
+// 这里取得是 hash值, 可能会造成误判.
 func (cs *counters) get(lvl Level, key string) *counter {
 	i := lvl - _minLevel
 	j := fnv32a(key) % _countersPerLevel
@@ -61,16 +63,19 @@ func fnv32a(s string) uint32 {
 	return hash
 }
 
+// 计数器 的 key:   level+ message, value: counter
 func (c *counter) IncCheckReset(t time.Time, tick time.Duration) uint64 {
 	tn := t.UnixNano()
-	resetAfter := c.resetAt.Load()
-	if resetAfter > tn {
+	resetAfter := c.resetAt.Load() // 时间窗口到期时间
+	if resetAfter > tn {           // 当前时间在 时间窗口范围内, 计数 + 1
 		return c.counter.Add(1)
 	}
 
+	// 开始一个新的窗口, 计数重置为 1
 	c.counter.Store(1)
 
 	newResetAfter := tn + tick.Nanoseconds()
+	// CAS 设置 时间窗口 边界
 	if !c.resetAt.CompareAndSwap(resetAfter, newResetAfter) {
 		// We raced with another goroutine trying to reset, and it also reset
 		// the counter to 1, so we need to reincrement the counter.
@@ -165,6 +170,8 @@ func NewSamplerWithOptions(core Core, tick time.Duration, first, thereafter int,
 	return s
 }
 
+// sampler 利用装饰器模式  装饰了  core,在 core 的基础上增加了sample 能力
+// 具体是在 sampler.Check 里面进行sample的逻辑
 type sampler struct {
 	Core
 
@@ -217,8 +224,13 @@ func (s *sampler) Check(ent Entry, ce *CheckedEntry) *CheckedEntry {
 	}
 
 	if ent.Level >= _minLevel && ent.Level <= _maxLevel {
+		// 计算 hash(message) 对应的日志条数.
+		// 对 相同 message(不包含field) 的 消息进行采样.
 		counter := s.counts.get(ent.Level, ent.Message)
 		n := counter.IncCheckReset(ent.Time, s.tick)
+		// first: 限流阈值,只有日志条目数 超过 这个值时 才会触发限流
+		// thereafter: 超过  阈值后的 打日志频率, 每隔 thereafter 条日志 打印一条.
+		// 假设first是100, thereafter是50: 表示同一个Message的log, 最初的100条全都会记录,之后的log在每秒钟内,每50条记录一次
 		if n > s.first && (s.thereafter == 0 || (n-s.first)%s.thereafter != 0) {
 			s.hook(ent, LogDropped)
 			return ce

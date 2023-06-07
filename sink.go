@@ -55,6 +55,8 @@ type nopCloserSink struct{ zapcore.WriteSyncer }
 
 func (nopCloserSink) Close() error { return nil }
 
+// sink 注册表. 默认添加  schemeFile -> sr.newFileSinkFromURL
+// 工厂模式
 type sinkRegistry struct {
 	mu        sync.Mutex
 	factories map[string]func(*url.URL) (Sink, error)          // keyed by scheme

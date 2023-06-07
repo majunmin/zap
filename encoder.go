@@ -31,6 +31,8 @@ import (
 var (
 	errNoEncoderNameSpecified = errors.New("no encoder name specified")
 
+	// _encoderNameToConstructor是一个map[string]constructor，plugin式写法. (Registry)
+	// 可以通过RegisterEncoder函数注册自定义的Encoder, 默认只有console和json
 	_encoderNameToConstructor = map[string]func(zapcore.EncoderConfig) (zapcore.Encoder, error){
 		"console": func(encoderConfig zapcore.EncoderConfig) (zapcore.Encoder, error) {
 			return zapcore.NewConsoleEncoder(encoderConfig), nil

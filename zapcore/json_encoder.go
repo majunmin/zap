@@ -92,8 +92,9 @@ func newJSONEncoder(cfg EncoderConfig, spaced bool) *jsonEncoder {
 
 	return &jsonEncoder{
 		EncoderConfig: &cfg,
-		buf:           bufferpool.Get(),
-		spaced:        spaced,
+		// 这个buf是高性能的关键之一, 使用了简化的 bytesBuffer 和 sync.Pool
+		buf:    bufferpool.Get(),
+		spaced: spaced,
 	}
 }
 
@@ -358,6 +359,8 @@ func (enc *jsonEncoder) clone() *jsonEncoder {
 	return clone
 }
 
+// EncodeEntry zap 并没有使用  json.Marshal 来序列化 entry, 而是使用拼接字符串的方式 手动拼出了一个 json字符串, 这种方式的性能比 json.Marshal 好很多.
+// 里面的具体逻辑很简单, 就是 appendKey, appendValue.
 func (enc *jsonEncoder) EncodeEntry(ent Entry, fields []Field) (*buffer.Buffer, error) {
 	final := enc.clone()
 	final.buf.AppendByte('{')

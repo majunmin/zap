@@ -47,6 +47,10 @@ import (
 // a scheme, the special paths "stdout" and "stderr" are interpreted as
 // os.Stdout and os.Stderr. When specified without a scheme, relative file
 // paths also work.
+//
+// 对 多个  URLs 的高度封装. open 多个声明的资源, 并组合成一个 lockedWriteSyncer.
+// 它会返回任何一个资源的错误,并将 打开的 资源(URL) 关闭.
+// 2. 不同的 资源 通过 schema 进行区分. _sinkRegistry 通过 工厂模式 对不同的 scheme 进行解析.
 func Open(paths ...string) (zapcore.WriteSyncer, func(), error) {
 	writers, close, err := open(paths)
 	if err != nil {
@@ -90,6 +94,8 @@ func open(paths []string) ([]zapcore.WriteSyncer, func(), error) {
 //
 // It's provided purely as a convenience; the result is no different from
 // using zapcore.NewMultiWriteSyncer and zapcore.Lock individually.
+// 将多个 WriterSyncer 封装成一个 multiWriterSyncer, 并用 lockedWriteSyncer 进行封装.
+// 方便使用.
 func CombineWriteSyncers(writers ...zapcore.WriteSyncer) zapcore.WriteSyncer {
 	if len(writers) == 0 {
 		return zapcore.AddSync(io.Discard)

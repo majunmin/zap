@@ -84,6 +84,7 @@ func (c *ioCore) With(fields []Field) Core {
 	return clone
 }
 
+// Check 把core添加到了CheckedEntry里, 在后续的 CheckedEntry.Write 里会被调用
 func (c *ioCore) Check(ent Entry, ce *CheckedEntry) *CheckedEntry {
 	if c.Enabled(ent.Level) {
 		return ce.AddCore(ent, c)
@@ -92,11 +93,14 @@ func (c *ioCore) Check(ent Entry, ce *CheckedEntry) *CheckedEntry {
 }
 
 func (c *ioCore) Write(ent Entry, fields []Field) error {
+	// 1. Encode 高性能的核心就在这里 EncodeEntry
 	buf, err := c.enc.EncodeEntry(ent, fields)
 	if err != nil {
 		return err
 	}
+	// 2. Write c.out 就是 sink
 	_, err = c.out.Write(buf.Bytes())
+	// 将 buf 放回对象池
 	buf.Free()
 	if err != nil {
 		return err
@@ -109,6 +113,7 @@ func (c *ioCore) Write(ent Entry, fields []Field) error {
 	return nil
 }
 
+// Sync 当日志级别比较高(> Error)的时候,立即将缓存中的日志同步.
 func (c *ioCore) Sync() error {
 	return c.out.Sync()
 }

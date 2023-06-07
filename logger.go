@@ -153,6 +153,7 @@ func (log *Logger) Named(s string) *Logger {
 	if s == "" {
 		return log
 	}
+	// 避免原地更改带来的并发问题
 	l := log.clone()
 	if log.name == "" {
 		l.name = s
@@ -193,6 +194,7 @@ func (log *Logger) Level() zapcore.Level {
 // Check returns a CheckedEntry if logging a message at the specified level
 // is enabled. It's a completely optional optimization; in high-performance
 // applications, Check can help avoid allocating a slice to hold fields.
+// Logger.Check 是一个可选优化, 在高性能场景中 可以避免 不必要的切片分配和持有字段
 func (log *Logger) Check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	return log.check(lvl, msg)
 }
@@ -200,6 +202,8 @@ func (log *Logger) Check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 // Log logs a message at the specified level. The message includes any fields
 // passed at the log site, as well as any fields accumulated on the logger.
 func (log *Logger) Log(lvl zapcore.Level, msg string, fields ...Field) {
+	// 在打印日志之前 先进行 日志级别的检查, 减少不必要的性能损耗.
+	// Logger.Check 内部会调用  Core.Check()
 	if ce := log.check(lvl, msg); ce != nil {
 		ce.Write(fields...)
 	}
@@ -292,11 +296,16 @@ func (log *Logger) clone() *Logger {
 	return &copy
 }
 
+// 日志级别检查
+// zapcore.Core.Check()
+// 添加堆栈信息
+// 添加方法调用者信息
 func (log *Logger) check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	// Logger.check must always be called directly by a method in the
 	// Logger interface (e.g., Check, Info, Fatal).
 	// This skips Logger.check and the Info/Fatal/Check/etc. method that
 	// called it.
+	// 跳过当前这个check函数以及调用check的Error/Info/Fatal等函数
 	const callerSkipOffset = 2
 
 	// Check the level first to reduce the cost of disabled log calls.
@@ -357,6 +366,7 @@ func (log *Logger) check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	if !log.addCaller && !addStack {
 		return ce
 	}
+	// 添加 stacktrace 和 caller 信息
 
 	// Adding the caller or stack trace requires capturing the callers of
 	// this function. We'll share information between these two.
